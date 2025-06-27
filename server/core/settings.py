@@ -4,7 +4,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'your-secret-key'
 DEBUG = True
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
+CSRF_TRUSTED_ORIGINS = [
+    'https://b99a-223-181-116-58.ngrok-free.app',
+]
 
 INSTALLED_APPS = [
     'django.contrib.admin',

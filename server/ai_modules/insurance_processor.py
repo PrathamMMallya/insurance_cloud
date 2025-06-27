@@ -50,6 +50,7 @@ class InsuranceRAGProcessor:
         self.vector_stores = {}
         self.retrievers = {}
         self.rag_chain = None
+        self.keyword_chain = None
         
     def load_and_convert_document(self, file_path: str) -> str:
         """Load and convert document to markdown"""
@@ -290,60 +291,85 @@ class InsuranceRAGProcessor:
         """Intelligent hybrid retrieval with deduplication and ranking"""
         if not self.retrievers:
             raise ValueError("Retrievers not initialized. Call create_smart_retrievers first.")
-        
+
         all_docs = []
         seen_content = set()
         
-        # Extract key terms from question
         question_lower = question.lower()
-        key_terms = []
-        
-        # Extract age
+        key_terms = set()  # Use set to avoid duplicates
+
+        # === Manual extraction from question ===
         age_match = re.search(r'age[:\s]*(\d+)', question_lower)
         if age_match:
-            key_terms.append(f"age {age_match.group(1)}")
+            key_terms.add(f"age {age_match.group(1)}")
         
-        # Extract conditions
         conditions = ['diabetes', 'heart', 'cancer', 'hypertension', 'kidney', 'liver']
         for condition in conditions:
             if condition in question_lower:
-                key_terms.append(condition)
+                key_terms.add(condition)
         
-        # Extract budget info
         budget_match = re.search(r'₹(\d+,?\d*)', question)
         if budget_match:
-            key_terms.append(f"budget {budget_match.group(1)}")
-        
+            key_terms.add(f"budget {budget_match.group(1)}")
+
+        # === Model-based structured keyword extraction ===
+        extractor = self.create_keyword_extractor_chain()
+        structured_keywords = extractor.invoke({"question": question_lower})
+        print(structured_keywords)  # You can log this instead if needed
+
+        for item in structured_keywords:
+            item_lower = item.lower()
+
+            if "age" in item_lower:
+                match = re.search(r'age[:\s]*(\d+)', item_lower)
+                if match:
+                    key_terms.add(f"age {match.group(1)}")
+
+            elif "health condition" in item_lower:
+                parts = item_lower.split("health conditions:")[-1].split(",")
+                for cond in parts:
+                    key_terms.add(cond.strip())
+
+            elif "budget" in item_lower:
+                match = re.search(r'₹(\d+,?\d*)', item_lower)
+                if match:
+                    key_terms.add(f"budget {match.group(1)}")
+
+            elif "coverage" in item_lower:
+                parts = item_lower.split(":")[-1].split(",")
+                for coverage in parts:
+                    key_terms.add(coverage.strip())
+
+        key_terms = list(key_terms)  # Convert to list for scoring
         logger.info(f"Extracted key terms: {key_terms}")
-        
-        # Get documents from each retriever
+
+        # === Retrieval and ranking ===
         for name, retriever in self.retrievers.items():
             try:
                 docs = retriever.invoke(question)
                 for doc in docs:
                     content_signature = ' '.join(doc.page_content.split()[:20])
                     content_hash = hash(content_signature)
-                    
+
                     if content_hash not in seen_content:
-                        # Add relevance score
                         relevance_score = 0
                         doc_content_lower = doc.page_content.lower()
-                        
+
                         for term in key_terms:
                             if term in doc_content_lower:
                                 relevance_score += 1
-                        
+
                         doc.metadata['retriever'] = name
                         doc.metadata['relevance_score'] = relevance_score
                         all_docs.append(doc)
                         seen_content.add(content_hash)
-                        
+
             except Exception as e:
                 logger.error(f"Error with {name} retriever: {e}")
-        
-        # Sort by relevance score
+
         all_docs.sort(key=lambda x: x.metadata.get('relevance_score', 0), reverse=True)
         return all_docs[:top_k]
+
     
     def create_rag_chain(self):
         """Create RAG chain with enhanced prompting"""
@@ -351,42 +377,42 @@ class InsuranceRAGProcessor:
             raise ValueError("Retrievers not initialized.")
         
         prompt = """
-You are an expert health insurance advisor in India. Analyze the provided insurance policies and recommend the most suitable options based on the user's specific needs.
+            You are an expert health insurance advisor in India. Analyze the provided insurance policies and recommend the most suitable options based on the user's specific needs.
 
-USER REQUIREMENTS:
-{question}
+            USER REQUIREMENTS:
+            {question}
 
-AVAILABLE INSURANCE POLICIES:
-{context}
+            AVAILABLE INSURANCE POLICIES:
+            {context}
 
-INSTRUCTIONS:
-1. Carefully analyze each policy option provided
-2. Match the user's age, health condition, and budget with suitable policies
-3. Consider premium affordability (monthly income vs annual premium)
-4. Ensure the health condition is covered under the policy
-5. Provide 2-3 specific policy recommendations with clear reasoning
-6. If no suitable policy exists, explain why and suggest alternatives
+            INSTRUCTIONS:
+            1. Carefully analyze each policy option provided
+            2. Match the user's age, health condition, and budget with suitable policies
+            3. Consider premium affordability (monthly income vs annual premium)
+            4. Ensure the health condition is covered under the policy
+            5. Provide 2-3 specific policy recommendations with clear reasoning
+            6. If no suitable policy exists, explain why and suggest alternatives
 
-RESPONSE FORMAT:
-## Recommended Insurance Policies
+            RESPONSE FORMAT:
+            ## Recommended Insurance Policies
 
-### Policy 1: [Policy Name]
-- **Why suitable**: [Specific reasons]
-- **Coverage**: [What's covered for user's condition]
-- **Premium**: [Annual premium and monthly breakdown]
-- **Key Benefits**: [Relevant benefits]
+            ### Policy 1: [Policy Name]
+            - **Why suitable**: [Specific reasons]
+            - **Coverage**: [What's covered for user's condition]
+            - **Premium**: [Annual premium and monthly breakdown]
+            - **Key Benefits**: [Relevant benefits]
 
-### Policy 2: [Policy Name]
-- **Why suitable**: [Specific reasons]
-- **Coverage**: [What's covered for user's condition]
-- **Premium**: [Annual premium and monthly breakdown]
-- **Key Benefits**: [Relevant benefits]
+            ### Policy 2: [Policy Name]
+            - **Why suitable**: [Specific reasons]
+            - **Coverage**: [What's covered for user's condition]
+            - **Premium**: [Annual premium and monthly breakdown]
+            - **Key Benefits**: [Relevant benefits]
 
-## Summary
-[Brief summary of why these policies are recommended]
+            ## Summary
+            [Brief summary of why these policies are recommended]
 
-Base your recommendations ONLY on the provided policy information.
-"""
+            Base your recommendations ONLY on the provided policy information.
+            """
         
         # Try to load the best available model
         model_options = ["llama3.2:3b", "llama3.1:8b", "llama3:8b"]
@@ -424,6 +450,38 @@ Base your recommendations ONLY on the provided policy information.
         )
         
         return self.rag_chain
+    def create_keyword_extractor_chain(self):
+        """Creates a LLaMA-powered chain to extract structured keywords from user input"""
+
+        model = ChatOllama(
+            model="llama3.2:3b",
+            base_url="http://localhost:11434",
+            temperature=0.1
+        )
+
+        prompt = """
+    You are a helpful assistant. Extract the following from the user's message:
+    1. Age
+    2. Health conditions (like asthma, thyroid, etc.)
+    3. Budget or financial constraints the exact value (like 15000rs ,etc. if the value is given) 
+    4. Desired coverage (doctor visits, prescriptions, etc.)
+
+    Input:
+    {question}
+
+    Return the extracted information as a Python list of strings.
+    """
+
+        prompt_template = ChatPromptTemplate.from_template(prompt)
+
+        self.keyword_chain = (
+            prompt_template
+            | model
+            | StrOutputParser()
+        )
+
+        return self.keyword_chain
+
     
     def format_context(self, docs: List[Document]) -> str:
         """Format documents for context"""
