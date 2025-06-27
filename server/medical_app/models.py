@@ -3,8 +3,9 @@ from django.db import models
 class MedicalRecord(models.Model):
     patient_name = models.CharField(max_length=100)
     report_text = models.TextField()
-    summary = models.TextField(blank=True, null=True)
-    markdown_summary = models.TextField(blank=True, null=True)
+    summary_doctor = models.TextField()   #  summary 1 for insurance/doctor..
+    summary_patient = models.TextField()  # Simplified summary for patient...
+    markdown_summary = models.TextField()
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
