@@ -3,66 +3,72 @@ import markdownify
 import torch
 import os
 
-# Path to Pegasus model
+# Path to local Pegasus model
 model_path = r"C:\Users\prath\Downloads\insurance\medical-summary-app\server\medical_app\pegasus"
 
+# Load tokenizer and model once
 tokenizer = PegasusTokenizer.from_pretrained(model_path)
-model = PegasusForConditionalGeneration.from_pretrained(model_path)
+model = PegasusForConditionalGeneration.from_pretrained(model_path).to(
+    torch.device("cuda" if torch.cuda.is_available() else "cpu")
+)
 model.eval()
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model.to(device)
-# Generate summary from text + custom prompt
+
+# Summary generator function
 def generate_summary(text, prompt):
-    input_text = prompt + "\n\n" + text.strip()
-    inputs = tokenizer(input_text, truncation=True, padding="longest", return_tensors="pt").to(device)
+    device = model.device
+    input_text = f"{prompt.strip()}\n\n{text.strip()}"
+
+    inputs = tokenizer(
+        input_text,
+        truncation=True,
+        padding="longest",
+        max_length=1024,
+        return_tensors="pt"
+    ).to(device)
 
     summary_ids = model.generate(
         **inputs,
-        max_length=800,
-        min_length=250,
-        num_beams=5,
-        length_penalty=1.0,
-        early_stopping=True
+        max_length=350,
+        min_length=100,
+        num_beams=4,
+        length_penalty=1.2,
+        early_stopping=True,
+        do_sample=False
     )
-    raw_summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
-    cleaned_summary = raw_summary.replace("<n>", "\n").strip()
-    return cleaned_summary
-    
+
+    output = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+    return output.strip()
+
+
+# Main processor
 def summarize_and_convert(text, record_id):
-    # Pre-clean input text
     cleaned_text = text.replace("<n>", "\n").strip()
 
+    # Generate a unified insurance summary
+    insurance_prompt = (
+        "Summarize the following document to extract key insurance-related information. "
+        "If it's a health report, include age, medical conditions, treatments, and budget. "
+        "If it's about a vehicle, extract vehicle type, accident history, repairs, coverage preferences, and cost details."
+    )
+    summary_insurance = generate_summary(cleaned_text, insurance_prompt)
+
+    # Remove any boilerplate pattern if accidentally retained
+    for unwanted_prefix in [
+        "Key details for health insurance", 
+        "summary should help an insurance recommender", 
+        "Summarize the following document"
+    ]:
+        if unwanted_prefix.lower() in summary_insurance.lower():
+            parts = summary_insurance.split("\n")
+            filtered = [line for line in parts if unwanted_prefix.lower() not in line.lower()]
+            summary_insurance = "\n".join(filtered).strip()
+
+    # Generate Markdown version of the original report
     markdown_version = markdownify.markdownify(cleaned_text, heading_style="ATX")
 
     os.makedirs("downloads", exist_ok=True)
-    md_path = f"downloads/record_{record_id}.md"
-    with open(md_path, "w", encoding="utf-8") as f:
+    with open(f"downloads/record_{record_id}.md", "w", encoding="utf-8") as f:
         f.write(markdown_version)
 
-    doctor_prompt = (
-        "You are a helpful assistant. Extract the following from the patient's medical history:\n"
-        "1. Age\n"
-        "2. Health conditions (like asthma, thyroid, etc.)\n"
-        "3. Budget or financial constraints with exact value (e.g. 15000rs)\n"
-        "4. Desired coverage (e.g. doctor visits, prescriptions, etc.)"
-    )
-    summary_doctor = generate_summary(cleaned_text, doctor_prompt)
-
-    patient_prompt = (
-        "Explain the patient's medical report in simple terms that a non-medical person can understand. "
-        "Summarize the condition, what the patient should know, and any action they need to take."
-    )
-    summary_patient = generate_summary(cleaned_text, patient_prompt)
-
-    return summary_doctor, summary_patient, markdown_version
-
-    summary_doctor = generate_summary(text, doctor_prompt)
-
-    patient_prompt = (
-        "Explain the patient's medical report in simple terms that a non-medical person can understand. "
-        "Summarize the condition, what the patient should know, and any action they need to take."
-    )
-    summary_patient = generate_summary(text, patient_prompt)
-
-    return summary_doctor, summary_patient, markdown_version
+    return summary_insurance, markdown_version

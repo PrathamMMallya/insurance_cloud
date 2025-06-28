@@ -8,6 +8,7 @@ import fitz  # PyMuPDF
 import docx
 import os
 
+
 def extract_text_from_file(uploaded_file):
     if uploaded_file.name.endswith('.pdf'):
         with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
@@ -16,6 +17,18 @@ def extract_text_from_file(uploaded_file):
         doc = docx.Document(uploaded_file)
         return "\n".join([p.text for p in doc.paragraphs])
     return ""
+
+
+def remove_prompt_lines(summary: str) -> str:
+    lines = summary.splitlines()
+    cleaned = [
+        line for line in lines
+        if not line.strip().lower().startswith((
+            "if it's", "include age", "key details for", "summary should help", "medical history:"
+        ))
+    ]
+    return "\n".join(cleaned).strip()
+
 
 def index(request):
     if request.method == 'POST':
@@ -26,8 +39,7 @@ def index(request):
         if uploaded_file:
             report_text = extract_text_from_file(uploaded_file)
 
-        # Replace <n> with newline
-        report_text = report_text.replace("<n>", "\n")
+        report_text = report_text.replace("<n>", "\n").strip()
 
         if not report_text:
             return render(request, 'index.html', {
@@ -35,32 +47,34 @@ def index(request):
                 'error': 'No input found. Please upload or type a report.'
             })
 
-        # Save record to DB
+        # Save initial record
         record = MedicalRecord.objects.create(
             patient_name=patient_name,
             report_text=report_text,
-            summary_doctor="",
-            summary_patient="",
+            insurance_summary="",
             markdown_summary=""
         )
 
-        # Generate summaries
-        summary_doctor, summary_patient, markdown_summary = summarize_and_convert(report_text, record.id)
+        # Generate summary and markdown
+        summary_insurance, markdown_summary = summarize_and_convert(report_text, record.id)
+        summary_insurance = summary_insurance.replace("<n>", "\n")
+        markdown_summary = markdown_summary.replace("<n>", "\n")
+
+        # Remove any prompt/instruction lines
+        summary_insurance = remove_prompt_lines(summary_insurance)
 
         # Save updated summaries
-        record.summary_doctor = summary_doctor
-        record.summary_patient = summary_patient
+        record.insurance_summary = summary_insurance
         record.markdown_summary = markdown_summary
         record.save()
 
-        # ⬇️ Pass doctor summary to insurance query page via session
-        request.session['insurance_query'] = summary_doctor
+        # Pass to insurance module
+        request.session['insurance_query'] = summary_insurance
         request.session.modified = True
 
-        # Redirect to insurance query page
         return redirect('insurance:query')
 
-    # GET: Show existing records
+    # GET request
     records = MedicalRecord.objects.all().order_by('-uploaded_at')
     return render(request, 'index.html', {'records': records})
 
@@ -72,11 +86,12 @@ def download_markdown(request, record_id):
     else:
         raise Http404("Markdown file not found.")
 
+
 def delete_all_summaries(request):
     if request.method == 'POST':
         MedicalRecord.objects.all().delete()
 
-        # Clean markdown downloads
+        # Clean up markdown files
         download_dir = "downloads"
         if os.path.exists(download_dir):
             for filename in os.listdir(download_dir):

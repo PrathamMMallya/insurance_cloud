@@ -52,9 +52,9 @@ class InsuranceQueryForm(forms.Form):
             raise forms.ValidationError('Query must be at least 10 characters long.')
         
         # Check maximum length
-        if len(query) > 1000:
-            raise forms.ValidationError('Query must be less than 1000 characters.')
-        
+        if len(query) > 10000:
+            raise forms.ValidationError('Query must be less than 10000 characters.')
+
         return query.strip()
 
 class DocumentSearchForm(forms.Form):
