@@ -415,7 +415,9 @@ class InsuranceRAGProcessor:
             """
         
         # Try to load the best available model
-        model_options = ["llama3.2:3b", "llama3.1:8b", "llama3:8b"]
+        model_options = ["phi3:mini", "llama3", "llama2"]
+
+
         
         model = None
         for model_name in model_options:
@@ -454,7 +456,7 @@ class InsuranceRAGProcessor:
         """Creates a LLaMA-powered chain to extract structured keywords from user input"""
 
         model = ChatOllama(
-            model="llama3.2:3b",
+            model="phi3:mini",
             base_url="http://localhost:11434",
             temperature=0.1
         )

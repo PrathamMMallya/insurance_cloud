@@ -4,7 +4,7 @@ from django.contrib import messages
 from .models import MedicalRecord
 from ai_modules.summarizer.processor import summarize_and_convert
 
-import fitz  
+import fitz  # PyMuPDF
 import docx
 import os
 
@@ -35,26 +35,35 @@ def index(request):
                 'error': 'No input found. Please upload or type a report.'
             })
 
-        # Create initial record to generate record ID
+        # Save record to DB
         record = MedicalRecord.objects.create(
             patient_name=patient_name,
             report_text=report_text,
-            summary_doctor="",     # updated now PMM
-            summary_patient="",    # updated by PMM
-            markdown_summary=""    # updated by PMM
+            summary_doctor="",
+            summary_patient="",
+            markdown_summary=""
         )
 
+        # Generate summaries
         summary_doctor, summary_patient, markdown_summary = summarize_and_convert(report_text, record.id)
 
+        # Save updated summaries
         record.summary_doctor = summary_doctor
         record.summary_patient = summary_patient
         record.markdown_summary = markdown_summary
         record.save()
 
-        return redirect('index')
+        # ⬇️ Pass doctor summary to insurance query page via session
+        request.session['insurance_query'] = summary_doctor
+        request.session.modified = True
 
+        # Redirect to insurance query page
+        return redirect('insurance:query')
+
+    # GET: Show existing records
     records = MedicalRecord.objects.all().order_by('-uploaded_at')
     return render(request, 'index.html', {'records': records})
+
 
 def download_markdown(request, record_id):
     file_path = f"downloads/record_{record_id}.md"
@@ -67,6 +76,7 @@ def delete_all_summaries(request):
     if request.method == 'POST':
         MedicalRecord.objects.all().delete()
 
+        # Clean markdown downloads
         download_dir = "downloads"
         if os.path.exists(download_dir):
             for filename in os.listdir(download_dir):

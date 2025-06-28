@@ -4,7 +4,7 @@ import torch
 import os
 
 # Path to Pegasus model
-model_path = r"C:\Users\tjsre\Desktop\projects\practice\ml\navy_project\secret\models\pegasus"
+model_path = r"C:\Users\prath\Downloads\insurance\medical-summary-app\server\medical_app\pegasus"
 
 tokenizer = PegasusTokenizer.from_pretrained(model_path)
 model = PegasusForConditionalGeneration.from_pretrained(model_path)

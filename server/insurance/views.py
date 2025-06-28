@@ -86,39 +86,56 @@ class DocumentUploadView(View):
 
 class InsuranceQueryView(View):
     """Handle insurance queries"""
-    
+
+    def get(self, request):
+        query_text = request.session.pop('insurance_query', None)
+
+        form = InsuranceQueryForm(initial={'query': query_text}) if query_text else InsuranceQueryForm()
+
+        documents = InsuranceDocument.objects.all()
+        recent_queries = InsuranceQuery.objects.all()[:5]
+
+        context = {
+            'documents': documents,
+            'recent_queries': recent_queries,
+            'upload_form': DocumentUploadForm(),
+            'query_form': form,
+            'total_chunks': DocumentChunk.objects.count(),
+            'total_documents': documents.count(),
+        }
+
+        return render(request, 'insurance/index.html', context)
+
     def post(self, request):
         form = InsuranceQueryForm(request.POST)
-        
+
         if form.is_valid():
             try:
                 query_text = form.cleaned_data['query']
-                
-                # Check if we have any processed documents
+
                 if not DocumentChunk.objects.exists():
                     return JsonResponse({
                         'success': False,
                         'error': 'No processed documents found. Please upload and process documents first.'
                     })
-                
-                # Initialize and query the RAG system
+
                 processor = InsuranceRAGProcessor()
                 success = processor.initialize_system()
-                
+
                 if not success:
                     return JsonResponse({
                         'success': False,
                         'error': 'Failed to initialize RAG system.'
                     })
-                
+
                 response = processor.query_insurance(query_text)
-                
+
                 return JsonResponse({
                     'success': True,
                     'response': response,
                     'query': query_text
                 })
-                
+
             except Exception as e:
                 logger.error(f"Error processing query: {e}")
                 return JsonResponse({
@@ -128,8 +145,9 @@ class InsuranceQueryView(View):
         else:
             return JsonResponse({
                 'success': False,
-                'error': 'Invalid query form.'
+                'error': 'Invalid query form: ' + str(form.errors)
             })
+
 
 @csrf_exempt
 def clear_database(request):

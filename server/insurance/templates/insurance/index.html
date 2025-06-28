@@ -190,10 +190,10 @@
                     <h4 class="text-white mb-3">
                         <i class="fas fa-search me-2"></i>Ask Insurance Question
                     </h4>
-                    <form id="queryForm">
+                    <form id="queryForm" method="post" action="{% url 'insurance:query' %}">
                         {% csrf_token %}
                         <div class="mb-3">
-                            <label class="form-label text-white">Your Question</label>
+                            <label for="{{ query_form.query.id_for_label }}" class="form-label text-white">Your Question</label>
                             {{ query_form.query }}
                             <small class="form-text text-light">{{ query_form.query.help_text }}</small>
                         </div>
@@ -209,7 +209,7 @@
                     </form>
                 </div>
             </div>
-        </div>
+
 
         <!-- Query Response -->
         <div id="queryResponse" style="display: none;"></div>
