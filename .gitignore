@@ -11,3 +11,10 @@ venv/
 downloads/
 .vscode/
 .idea/
+
+# Secrets and environment variables
+.env
+.env.*
+*.pem
+node_modules/
+dist/

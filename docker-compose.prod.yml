@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  django:
+    build: .
+    container_name: insurerag-backend
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - ./data/media:/app/server/media
+      - ./data/db:/app/server/db
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=False
+
+  nginx:
+    image: nginx:alpine
+    container_name: insurerag-nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./data/media:/app/media
+    depends_on:
+      - django

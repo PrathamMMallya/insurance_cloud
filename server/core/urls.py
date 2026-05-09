@@ -6,8 +6,7 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', include('medical_app.urls')),
-    path('insurance/', include('insurance.urls')),  # Add this line
+    path('', include('insurance.urls')),
 ]
 
 # Serve media files during development

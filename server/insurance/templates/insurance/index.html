@@ -3,90 +3,217 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Insurance RAG System</title>
+    <title>Insurance RAG System — Dual Model Debate</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        * { font-family: 'Inter', sans-serif; }
+
         body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
             min-height: 100vh;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #e0e0e0;
         }
-        
+
         .glass-card {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border-radius: 15px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            background: rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(16px);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
         }
-        
+
         .stats-card {
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.08);
             backdrop-filter: blur(10px);
-            border-radius: 15px;
-            border: none;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease;
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.08);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
-        
         .stats-card:hover {
-            transform: translateY(-5px);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(102, 126, 234, 0.2);
         }
-        
+
         .btn-custom {
-            background: linear-gradient(45deg, #667eea, #764ba2);
+            background: linear-gradient(135deg, #667eea, #764ba2);
             border: none;
-            border-radius: 25px;
-            padding: 12px 25px;
+            border-radius: 12px;
+            padding: 12px 28px;
             color: white;
-            font-weight: 500;
+            font-weight: 600;
             transition: all 0.3s ease;
+            letter-spacing: 0.3px;
         }
-        
         .btn-custom:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
             color: white;
         }
-        
-        .btn-danger-custom {
-            background: linear-gradient(45deg, #ff6b6b, #ee5a52);
+
+        .btn-summary {
+            background: linear-gradient(135deg, #11998e, #38ef7d);
             border: none;
-            border-radius: 25px;
+            border-radius: 12px;
+            padding: 10px 22px;
+            color: white;
+            font-weight: 600;
+        }
+        .btn-summary:hover {
+            box-shadow: 0 8px 25px rgba(56, 239, 125, 0.3);
+            color: white;
+        }
+
+        .btn-danger-custom {
+            background: linear-gradient(135deg, #ff416c, #ff4b2b);
+            border: none;
+            border-radius: 12px;
             padding: 10px 20px;
             color: white;
         }
-        
-        .query-response {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 15px;
-            padding: 20px;
+
+        /* Debate visualization */
+        .debate-container {
             margin-top: 20px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
         }
-        
+        .debate-round {
+            background: rgba(255,255,255,0.04);
+            border-radius: 12px;
+            border-left: 4px solid;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+            transition: all 0.3s ease;
+        }
+        .debate-round:hover {
+            background: rgba(255,255,255,0.07);
+        }
+        .debate-round.round-proposer {
+            border-left-color: #667eea;
+        }
+        .debate-round.round-critic {
+            border-left-color: #ff6b6b;
+        }
+        .debate-round.round-refined {
+            border-left-color: #38ef7d;
+        }
+        .debate-badge {
+            font-size: 0.7rem;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        .badge-proposer { background: rgba(102,126,234,0.2); color: #667eea; }
+        .badge-critic { background: rgba(255,107,107,0.2); color: #ff6b6b; }
+        .badge-refined { background: rgba(56,239,125,0.2); color: #38ef7d; }
+
+        .consensus-card {
+            background: linear-gradient(135deg, rgba(102,126,234,0.1), rgba(118,75,162,0.1));
+            border: 1px solid rgba(102,126,234,0.3);
+            border-radius: 16px;
+            padding: 24px;
+        }
+
+        .query-response {
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 16px;
+            padding: 24px;
+            margin-top: 20px;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+
         .document-card {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.08);
             transition: transform 0.2s ease;
         }
-        
         .document-card:hover {
             transform: scale(1.02);
+            border-color: rgba(102,126,234,0.3);
         }
-        
-        .loading-spinner {
+        .document-card .card-body { color: #e0e0e0; }
+        .document-card .card-title { color: #fff; }
+        .document-card .text-muted { color: #a0a0b0 !important; }
+
+        .loading-spinner { display: none; }
+
+        .navbar-brand { font-weight: 700; font-size: 1.4rem; letter-spacing: -0.5px; }
+
+        .form-control {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.15);
+            color: #fff;
+            border-radius: 10px;
+        }
+        .form-control:focus {
+            background: rgba(255,255,255,0.12);
+            color: #fff;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102,126,234,0.2);
+        }
+        .form-control::placeholder { color: rgba(255,255,255,0.4); }
+
+        .user-doc-section {
+            background: rgba(56,239,125,0.05);
+            border: 1px dashed rgba(56,239,125,0.3);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .summary-preview {
+            background: rgba(255,255,255,0.05);
+            border-radius: 10px;
+            padding: 12px;
+            margin-top: 10px;
+            font-size: 0.85rem;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        .processing-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(4px);
             display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            flex-direction: column;
         }
-        
-        .navbar-brand {
-            font-weight: bold;
-            font-size: 1.5rem;
+        .processing-overlay.active { display: flex; }
+        .processing-text {
+            color: white;
+            margin-top: 20px;
+            font-size: 1.1rem;
         }
+        .processing-step {
+            color: rgba(255,255,255,0.6);
+            font-size: 0.85rem;
+            margin-top: 8px;
+        }
+
+        pre { white-space: pre-wrap; word-wrap: break-word; color: #e0e0e0; font-family: 'Inter', sans-serif; font-size: 0.9rem; }
     </style>
 </head>
 <body>
+    <!-- Processing Overlay -->
+    <div class="processing-overlay" id="processingOverlay">
+        <div class="spinner-border text-light" style="width: 3rem; height: 3rem;" role="status"></div>
+        <div class="processing-text">🤖 Dual-Model Debate in Progress...</div>
+        <div class="processing-step" id="processingStep">Round 1: Model A is analyzing policies...</div>
+    </div>
+
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark glass-card mb-4">
         <div class="container">
@@ -116,42 +243,42 @@
         {% endif %}
 
         <!-- Statistics Cards -->
-        <div class="row mb-4">
+        <div class="row mb-4 g-3">
             <div class="col-md-3">
                 <div class="card stats-card">
-                    <div class="card-body text-center">
-                        <i class="fas fa-file-pdf fa-2x text-primary mb-2"></i>
-                        <h5>{{ total_documents }}</h5>
-                        <p class="text-muted mb-0">Documents</p>
+                    <div class="card-body text-center py-3">
+                        <i class="fas fa-file-pdf fa-2x mb-2" style="color:#667eea"></i>
+                        <h4 class="text-white mb-0">{{ total_documents }}</h4>
+                        <p class="mb-0" style="color:#a0a0b0; font-size:0.85rem">Knowledge Base Docs</p>
                     </div>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="card stats-card">
-                    <div class="card-body text-center">
-                        <i class="fas fa-puzzle-piece fa-2x text-success mb-2"></i>
-                        <h5>{{ total_chunks }}</h5>
-                        <p class="text-muted mb-0">Chunks</p>
+                    <div class="card-body text-center py-3">
+                        <i class="fas fa-puzzle-piece fa-2x mb-2" style="color:#38ef7d"></i>
+                        <h4 class="text-white mb-0">{{ total_chunks }}</h4>
+                        <p class="mb-0" style="color:#a0a0b0; font-size:0.85rem">Policy Chunks</p>
                     </div>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="card stats-card">
-                    <div class="card-body text-center">
-                        <i class="fas fa-question-circle fa-2x text-info mb-2"></i>
-                        <h5>{{ recent_queries|length }}</h5>
-                        <p class="text-muted mb-0">Recent Queries</p>
+                    <div class="card-body text-center py-3">
+                        <i class="fas fa-comments fa-2x mb-2" style="color:#ff6b6b"></i>
+                        <h4 class="text-white mb-0">{{ recent_queries|length }}</h4>
+                        <p class="mb-0" style="color:#a0a0b0; font-size:0.85rem">Recent Queries</p>
                     </div>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="card stats-card">
-                    <div class="card-body text-center">
+                    <div class="card-body text-center py-3">
                         <form method="post" action="{% url 'insurance:clear_database' %}" style="display: inline;">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-danger-custom btn-sm" 
                                     onclick="return confirm('Are you sure you want to clear all data?')">
-                                <i class="fas fa-trash me-1"></i>Clear All
+                                <i class="fas fa-trash me-1"></i>Clear All Data
                             </button>
                         </form>
                     </div>
@@ -159,98 +286,124 @@
             </div>
         </div>
 
-        <div class="row">
-            <!-- Upload Section -->
-            <div class="col-md-6">
+        <div class="row g-4">
+            <!-- Upload Knowledge Base Section -->
+            <div class="col-lg-5">
                 <div class="glass-card p-4 mb-4">
-                    <h4 class="text-white mb-3">
-                        <i class="fas fa-upload me-2"></i>Upload Insurance Document
-                    </h4>
+                    <h5 class="text-white section-title">
+                        <i class="fas fa-database me-2" style="color:#667eea"></i>Upload to Knowledge Base
+                    </h5>
+                    <p style="color:rgba(255,255,255,0.5); font-size:0.8rem; margin-bottom:14px">
+                        Upload insurance policy PDFs that form the knowledge base for recommendations.
+                    </p>
                     <form method="post" action="{% url 'insurance:upload_document' %}" enctype="multipart/form-data">
                         {% csrf_token %}
                         <div class="mb-3">
-                            <label class="form-label text-white">Document Title</label>
+                            <label class="form-label text-white" style="font-size:0.85rem">Document Title</label>
                             {{ upload_form.title }}
                         </div>
                         <div class="mb-3">
-                            <label class="form-label text-white">PDF File</label>
+                            <label class="form-label text-white" style="font-size:0.85rem">PDF File</label>
                             {{ upload_form.document }}
-                            <small class="form-text text-light">Max file size: 50MB</small>
                         </div>
-                        <button type="submit" class="btn btn-custom">
+                        <button type="submit" class="btn btn-custom w-100">
                             <i class="fas fa-upload me-2"></i>Upload & Process
                         </button>
                     </form>
                 </div>
             </div>
 
-            <!-- Query Section -->
-            <div class="col-md-6">
+            <!-- Query Section with User Doc Upload -->
+            <div class="col-lg-7">
                 <div class="glass-card p-4 mb-4">
-                    <h4 class="text-white mb-3">
-                        <i class="fas fa-search me-2"></i>Ask Insurance Question
-                    </h4>
+                    <h5 class="text-white section-title">
+                        <i class="fas fa-brain me-2" style="color:#764ba2"></i>Ask Insurance Question (Dual-Model Debate)
+                    </h5>
+
+                    <!-- User Document Upload Section -->
+                    <div class="user-doc-section">
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="fas fa-file-medical me-2" style="color:#38ef7d"></i>
+                            <span class="text-white" style="font-size:0.9rem; font-weight:500">
+                                Upload Your Document (Optional)
+                            </span>
+                        </div>
+                        <p style="color:rgba(255,255,255,0.4); font-size:0.75rem; margin-bottom:10px">
+                            Upload your medical report, vehicle RC, health checkup, etc. We'll extract & summarize the key info for your query.
+                        </p>
+                        <div class="d-flex gap-2">
+                            <input type="file" id="userDocInput" class="form-control form-control-sm" accept=".pdf" style="flex:1">
+                            <button type="button" class="btn btn-summary btn-sm" id="summarizeBtn" onclick="summarizeUserDoc()">
+                                <i class="fas fa-magic me-1"></i>Extract & Summarize
+                            </button>
+                        </div>
+                        <div id="summaryLoading" style="display:none; margin-top:10px">
+                            <div class="spinner-border spinner-border-sm text-success" role="status"></div>
+                            <span style="color:#38ef7d; font-size:0.8rem; margin-left:8px">Extracting from document...</span>
+                        </div>
+                        <div id="summaryPreview" class="summary-preview" style="display:none"></div>
+                    </div>
+
+                    <!-- Query Form -->
                     <form id="queryForm" method="post" action="{% url 'insurance:query' %}">
                         {% csrf_token %}
                         <div class="mb-3">
-                            <label for="{{ query_form.query.id_for_label }}" class="form-label text-white">Your Question</label>
+                            <label for="{{ query_form.query.id_for_label }}" class="form-label text-white" style="font-size:0.85rem">
+                                Your Query
+                            </label>
                             {{ query_form.query }}
-                            <small class="form-text text-light">{{ query_form.query.help_text }}</small>
+                            <small style="color:rgba(255,255,255,0.4); font-size:0.75rem">
+                                {{ query_form.query.help_text }}
+                            </small>
                         </div>
-                        <button type="submit" class="btn btn-custom">
-                            <i class="fas fa-brain me-2"></i>Get Recommendations
+                        <button type="submit" class="btn btn-custom w-100">
+                            <i class="fas fa-comments me-2"></i>Run Dual-Model Debate
                         </button>
-                        <div class="loading-spinner mt-2">
-                            <div class="spinner-border text-light" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
-                            <span class="text-white ms-2">Processing your query...</span>
-                        </div>
                     </form>
                 </div>
             </div>
-
+        </div>
 
         <!-- Query Response -->
         <div id="queryResponse" style="display: none;"></div>
 
         <!-- Documents List -->
-        <div class="row">
+        <div class="row mt-4">
             <div class="col-12">
                 <div class="glass-card p-4">
-                    <h4 class="text-white mb-3">
-                        <i class="fas fa-folder me-2"></i>Uploaded Documents
-                    </h4>
+                    <h5 class="text-white section-title">
+                        <i class="fas fa-folder-open me-2" style="color:#667eea"></i>Knowledge Base Documents
+                    </h5>
                     {% if documents %}
-                        <div class="row">
+                        <div class="row g-3">
                             {% for doc in documents %}
-                                <div class="col-md-6 mb-3">
+                                <div class="col-md-6">
                                     <div class="card document-card">
                                         <div class="card-body">
                                             <h6 class="card-title">{{ doc.title }}</h6>
-                                            <p class="card-text text-muted small">
+                                            <p class="card-text small" style="color:#a0a0b0">
                                                 <i class="fas fa-file"></i> {{ doc.original_filename }}<br>
                                                 <i class="fas fa-clock"></i> {{ doc.uploaded_at|date:"M d, Y H:i" }}<br>
                                                 <i class="fas fa-puzzle-piece"></i> {{ doc.total_chunks }} chunks
                                                 {% if doc.processed %}
-                                                    <span class="badge bg-success">Processed</span>
+                                                    <span class="badge" style="background:rgba(56,239,125,0.2); color:#38ef7d">Processed</span>
                                                 {% else %}
-                                                    <span class="badge bg-warning">Processing...</span>
+                                                    <span class="badge" style="background:rgba(255,193,7,0.2); color:#ffc107">Processing...</span>
                                                 {% endif %}
                                             </p>
                                             <div class="btn-group btn-group-sm">
                                                 <a href="{% url 'insurance:document_detail' doc.id %}" 
-                                                   class="btn btn-outline-primary">
+                                                   class="btn btn-outline-light btn-sm">
                                                     <i class="fas fa-eye"></i> View
                                                 </a>
                                                 <a href="{% url 'insurance:export_chunks' doc.id %}" 
-                                                   class="btn btn-outline-success">
+                                                   class="btn btn-outline-light btn-sm">
                                                     <i class="fas fa-download"></i> Export
                                                 </a>
                                                 <form method="post" action="{% url 'insurance:delete_document' doc.id %}" 
                                                       style="display: inline;">
                                                     {% csrf_token %}
-                                                    <button type="submit" class="btn btn-outline-danger"
+                                                    <button type="submit" class="btn btn-outline-danger btn-sm"
                                                             onclick="return confirm('Delete this document?')">
                                                         <i class="fas fa-trash"></i>
                                                     </button>
@@ -262,8 +415,8 @@
                             {% endfor %}
                         </div>
                     {% else %}
-                        <div class="text-center text-white">
-                            <i class="fas fa-folder-open fa-3x mb-3 opacity-50"></i>
+                        <div class="text-center" style="color:rgba(255,255,255,0.4); padding:30px">
+                            <i class="fas fa-folder-open fa-3x mb-3" style="opacity:0.3"></i>
                             <p>No documents uploaded yet. Upload your first insurance document to get started!</p>
                         </div>
                     {% endif %}
@@ -274,19 +427,90 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/js/bootstrap.bundle.min.js"></script>
     <script>
+        // ── Summarize User Document ──────────────────────────────
+        async function summarizeUserDoc() {
+            const fileInput = document.getElementById('userDocInput');
+            const file = fileInput.files[0];
+            if (!file) {
+                alert('Please select a PDF file first.');
+                return;
+            }
+
+            const loadingDiv = document.getElementById('summaryLoading');
+            const previewDiv = document.getElementById('summaryPreview');
+            const btn = document.getElementById('summarizeBtn');
+
+            loadingDiv.style.display = 'block';
+            previewDiv.style.display = 'none';
+            btn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('user_document', file);
+            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+            try {
+                const response = await fetch('{% url "insurance:summarize_user_doc" %}', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    // Show summary preview
+                    previewDiv.innerHTML = `<strong style="color:#38ef7d">📄 Summary from ${data.filename}:</strong><br><pre>${data.summary}</pre>`;
+                    previewDiv.style.display = 'block';
+
+                    // Auto-fill query box with summary
+                    const queryBox = document.getElementById('id_query');
+                    const existingText = queryBox.value.trim();
+                    const prefix = `[Auto-extracted from ${data.filename}]\n${data.summary}\n\n---\nAdditional context: `;
+                    queryBox.value = existingText ? prefix + existingText : prefix;
+                    queryBox.focus();
+                    queryBox.setSelectionRange(queryBox.value.length, queryBox.value.length);
+                } else {
+                    previewDiv.innerHTML = `<span style="color:#ff6b6b">❌ ${data.error}</span>`;
+                    previewDiv.style.display = 'block';
+                }
+            } catch (err) {
+                previewDiv.innerHTML = `<span style="color:#ff6b6b">❌ Error: ${err.message}</span>`;
+                previewDiv.style.display = 'block';
+            } finally {
+                loadingDiv.style.display = 'none';
+                btn.disabled = false;
+            }
+        }
+
+        // ── Submit Query with Debate ─────────────────────────────
+        const debateSteps = [
+            'Round 1: Model A is analyzing policies...',
+            'Round 2: Model B is critiquing recommendations...',
+            'Round 3: Model A is refining based on critique...',
+            'Generating final consensus...'
+        ];
+
         document.getElementById('queryForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const form = e.target;
             const formData = new FormData(form);
-            const loadingSpinner = document.querySelector('.loading-spinner');
             const responseDiv = document.getElementById('queryResponse');
+            const overlay = document.getElementById('processingOverlay');
+            const stepEl = document.getElementById('processingStep');
             const submitBtn = form.querySelector('button[type="submit"]');
             
-            // Show loading state
-            loadingSpinner.style.display = 'block';
+            // Show processing overlay
+            overlay.classList.add('active');
             submitBtn.disabled = true;
             responseDiv.style.display = 'none';
+
+            // Animate debate steps
+            let stepIdx = 0;
+            const stepInterval = setInterval(() => {
+                if (stepIdx < debateSteps.length) {
+                    stepEl.textContent = debateSteps[stepIdx];
+                    stepIdx++;
+                }
+            }, 8000);
             
             try {
                 const response = await fetch('{% url "insurance:query" %}', {
@@ -298,25 +522,79 @@
                 });
                 
                 const data = await response.json();
+                clearInterval(stepInterval);
                 
                 if (data.success) {
+                    let debateHTML = '';
+                    
+                    // Render debate rounds
+                    if (data.debate_rounds && data.debate_rounds.length > 0) {
+                        debateHTML += `<div class="debate-container mb-4">
+                            <h6 class="text-white mb-3"><i class="fas fa-comments me-2"></i>Debate Rounds (${data.total_rounds} rounds, ${data.processing_time}s)</h6>`;
+                        
+                        data.debate_rounds.forEach(round => {
+                            let roundClass = 'round-proposer';
+                            let badgeClass = 'badge-proposer';
+                            let icon = '🔵';
+                            
+                            if (round.role === 'Critic') {
+                                roundClass = 'round-critic';
+                                badgeClass = 'badge-critic';
+                                icon = '🔴';
+                            } else if (round.role === 'Refined Proposal') {
+                                roundClass = 'round-refined';
+                                badgeClass = 'badge-refined';
+                                icon = '🟢';
+                            }
+                            
+                            debateHTML += `
+                                <div class="debate-round ${roundClass}">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="text-white" style="font-weight:600">
+                                            ${icon} Round ${round.round}: ${round.model}
+                                        </span>
+                                        <span class="debate-badge ${badgeClass}">${round.role.toUpperCase()}</span>
+                                    </div>
+                                    <details>
+                                        <summary style="color:rgba(255,255,255,0.6); cursor:pointer; font-size:0.85rem">
+                                            Click to expand full response
+                                        </summary>
+                                        <pre style="margin-top:10px">${round.content}</pre>
+                                    </details>
+                                </div>`;
+                        });
+                        debateHTML += '</div>';
+                    }
+
                     responseDiv.innerHTML = `
                         <div class="query-response">
-                            <h5><i class="fas fa-robot me-2"></i>Insurance Recommendations</h5>
-                            <div class="mt-3">
-                                <strong>Your Query:</strong>
-                                <p class="text-muted">${data.query}</p>
+                            <h5 class="text-white mb-3">
+                                <i class="fas fa-gavel me-2" style="color:#667eea"></i>Dual-Model Debate Results
+                            </h5>
+                            <div class="mb-3">
+                                <span style="color:rgba(255,255,255,0.5); font-size:0.85rem">Your Query:</span>
+                                <p class="text-white" style="font-size:0.9rem">${data.query}</p>
                             </div>
-                            <div class="mt-3">
-                                <strong>Our Recommendations:</strong>
-                                <div class="mt-2" style="white-space: pre-line;">${data.response}</div>
+
+                            <!-- Final Consensus -->
+                            <div class="consensus-card mb-4">
+                                <h6 style="color:#38ef7d"><i class="fas fa-check-circle me-2"></i>Final Consensus</h6>
+                                <pre>${data.response}</pre>
+                            </div>
+
+                            <!-- Debate Rounds (collapsible) -->
+                            ${debateHTML}
+
+                            <div style="color:rgba(255,255,255,0.4); font-size:0.75rem; text-align:right">
+                                ${data.chunks_used} chunks retrieved · ${data.total_rounds} debate rounds · ${data.processing_time}s
                             </div>
                         </div>
                     `;
                     responseDiv.style.display = 'block';
+                    responseDiv.scrollIntoView({ behavior: 'smooth' });
                 } else {
                     responseDiv.innerHTML = `
-                        <div class="alert alert-danger">
+                        <div class="alert alert-danger" style="border-radius:12px">
                             <i class="fas fa-exclamation-triangle me-2"></i>
                             ${data.error}
                         </div>
@@ -324,16 +602,16 @@
                     responseDiv.style.display = 'block';
                 }
             } catch (error) {
+                clearInterval(stepInterval);
                 responseDiv.innerHTML = `
-                    <div class="alert alert-danger">
+                    <div class="alert alert-danger" style="border-radius:12px">
                         <i class="fas fa-exclamation-triangle me-2"></i>
                         Error processing query: ${error.message}
                     </div>
                 `;
                 responseDiv.style.display = 'block';
             } finally {
-                // Hide loading state
-                loadingSpinner.style.display = 'none';
+                overlay.classList.remove('active');
                 submitBtn.disabled = false;
             }
         });

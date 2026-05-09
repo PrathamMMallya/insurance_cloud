@@ -1,4 +1,3 @@
-# insurance/views.py
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse, HttpResponse
 from django.contrib import messages
@@ -10,6 +9,7 @@ from django.views import View
 import json
 import os
 import logging
+import tempfile
 from pathlib import Path
 
 from .models import InsuranceDocument, DocumentChunk, InsuranceQuery
@@ -19,6 +19,11 @@ from .forms import DocumentUploadForm, InsuranceQueryForm
 import sys
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'ai_modules'))
 from ai_modules.insurance_processor import InsuranceRAGProcessor
+from ai_modules.s3_storage import (
+    upload_raw_pdf,
+    list_s3_objects,
+    get_s3_object_content,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +44,7 @@ class InsuranceIndexView(View):
         }
         return render(request, 'insurance/index.html', context)
 
+@method_decorator(csrf_exempt, name='dispatch')
 class DocumentUploadView(View):
     """Handle document upload and processing"""
     
@@ -67,7 +73,7 @@ class DocumentUploadView(View):
                     original_filename=uploaded_file.name
                 )
                 
-                # Process document in background (you might want to use Celery for this)
+                # Process document
                 processor = InsuranceRAGProcessor()
                 success = processor.process_document(full_file_path, document.id)
                 
@@ -84,8 +90,63 @@ class DocumentUploadView(View):
         
         return redirect('insurance:index')
 
+
+@method_decorator(csrf_exempt, name='dispatch')
+class UserDocumentSummaryView(View):
+    """Handle user document upload for insurance summary extraction."""
+
+    def post(self, request):
+        uploaded_file = request.FILES.get('user_document')
+
+        if not uploaded_file:
+            return JsonResponse({'success': False, 'error': 'No file uploaded.'})
+
+        if not uploaded_file.name.lower().endswith('.pdf'):
+            return JsonResponse({'success': False, 'error': 'Only PDF files are allowed.'})
+
+        try:
+            # Save to a temporary location
+            temp_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'media', 'user_uploads')
+            os.makedirs(temp_dir, exist_ok=True)
+            temp_path = os.path.join(temp_dir, uploaded_file.name)
+
+            with open(temp_path, 'wb') as f:
+                for chunk in uploaded_file.chunks():
+                    f.write(chunk)
+
+            # Upload raw PDF to S3
+            try:
+                upload_raw_pdf(temp_path, uploaded_file.name, prefix="user-uploads")
+            except Exception as s3_err:
+                logger.warning(f"S3 PDF upload failed (non-fatal): {s3_err}")
+
+            # Summarize the document
+            processor = InsuranceRAGProcessor()
+            summary = processor.summarize_user_document(temp_path)
+
+            # Clean up temp file
+            try:
+                os.remove(temp_path)
+            except:
+                pass
+
+            return JsonResponse({
+                'success': True,
+                'summary': summary,
+                'filename': uploaded_file.name
+            })
+
+        except Exception as e:
+            logger.error(f"Error summarizing user document: {e}")
+            return JsonResponse({
+                'success': False,
+                'error': f'Error processing document: {str(e)}'
+            })
+
+
+@method_decorator(csrf_exempt, name='dispatch')
 class InsuranceQueryView(View):
-    """Handle insurance queries"""
+    """Handle insurance queries with multi-round debate"""
 
     def get(self, request):
         query_text = request.session.pop('insurance_query', None)
@@ -128,11 +189,16 @@ class InsuranceQueryView(View):
                         'error': 'Failed to initialize RAG system.'
                     })
 
-                response = processor.query_insurance(query_text)
+                # query_insurance now returns a dict with debate results
+                result = processor.query_insurance(query_text)
 
                 return JsonResponse({
                     'success': True,
-                    'response': response,
+                    'response': result['final_consensus'],
+                    'debate_rounds': result['debate_rounds'],
+                    'total_rounds': result['total_rounds'],
+                    'processing_time': result['processing_time'],
+                    'chunks_used': result['chunks_used'],
                     'query': query_text
                 })
 
@@ -187,11 +253,9 @@ def delete_document(request, document_id):
         document = get_object_or_404(InsuranceDocument, id=document_id)
         
         try:
-            # Delete file from storage
             if os.path.exists(document.file_path):
                 os.remove(document.file_path)
             
-            # Delete document (chunks will be deleted due to CASCADE)
             document_title = document.title
             document.delete()
             
@@ -256,17 +320,31 @@ def export_chunks(request, document_id):
 def system_status(request):
     """Show system status and statistics"""
     try:
-        # Test Ollama connection
-        processor = InsuranceRAGProcessor()
-        ollama_status = True
+        # Test Groq API connection
+        groq_status = False
+        embedding_status = False
         try:
+            from groq import Groq
+            client = Groq(api_key=os.getenv("GROQ_API_KEY", ""))
+            client.chat.completions.create(
+                model=os.getenv("GROQ_MODEL_B", "llama-3.1-8b-instant"),
+                messages=[{"role": "user", "content": "test"}],
+                max_tokens=5
+            )
+            groq_status = True
+        except Exception as e:
+            logger.warning(f"Groq API check failed: {e}")
+
+        try:
+            processor = InsuranceRAGProcessor()
             test_embedding = processor.embeddings.embed_query("test")
-            ollama_status = len(test_embedding) > 0
-        except:
-            ollama_status = False
-        
+            embedding_status = len(test_embedding) > 0
+        except Exception as e:
+            logger.warning(f"Embedding check failed: {e}")
+
         context = {
-            'ollama_status': ollama_status,
+            'groq_status': groq_status,
+            'embedding_status': embedding_status,
             'total_documents': InsuranceDocument.objects.count(),
             'processed_documents': InsuranceDocument.objects.filter(processed=True).count(),
             'total_chunks': DocumentChunk.objects.count(),
@@ -278,12 +356,106 @@ def system_status(request):
             },
             'recent_queries': InsuranceQuery.objects.order_by('-query_time')[:10],
         }
-        
+
     except Exception as e:
         logger.error(f"Error getting system status: {e}")
         context = {
             'error': str(e),
-            'ollama_status': False,
+            'groq_status': False,
+            'embedding_status': False,
         }
-    
+
     return render(request, 'insurance/system_status.html', context)
+
+
+# =========================================================================
+# JSON API endpoints for React frontend
+# =========================================================================
+
+@csrf_exempt
+def api_stats(request):
+    """Return dashboard stats as JSON"""
+    return JsonResponse({
+        'total_documents': InsuranceDocument.objects.count(),
+        'processed_documents': InsuranceDocument.objects.filter(processed=True).count(),
+        'total_chunks': DocumentChunk.objects.count(),
+        'total_queries': InsuranceQuery.objects.count(),
+    })
+
+@csrf_exempt
+def api_documents(request):
+    """Return list of documents as JSON"""
+    docs = InsuranceDocument.objects.all().values(
+        'id', 'title', 'original_filename', 'uploaded_at', 'processed', 'total_chunks'
+    )
+    return JsonResponse({'documents': list(docs)}, safe=False)
+
+@csrf_exempt
+def api_queries(request):
+    """Return recent queries as JSON"""
+    queries = InsuranceQuery.objects.all()[:20].values(
+        'id', 'query_text', 'response_text', 'query_time', 'processing_time'
+    )
+    return JsonResponse({'queries': list(queries)}, safe=False)
+
+@csrf_exempt
+def api_system_status(request):
+    """Return system status as JSON"""
+    groq_status = False
+    embedding_status = False
+    try:
+        from groq import Groq
+        client = Groq(api_key=os.getenv('GROQ_API_KEY', ''))
+        client.chat.completions.create(
+            model=os.getenv('GROQ_MODEL_B', 'llama-3.1-8b-instant'),
+            messages=[{'role': 'user', 'content': 'test'}],
+            max_tokens=5
+        )
+        groq_status = True
+    except:
+        pass
+    try:
+        processor = InsuranceRAGProcessor()
+        test = processor.embeddings.embed_query('test')
+        embedding_status = len(test) > 0
+    except:
+        pass
+
+    return JsonResponse({
+        'groq_status': groq_status,
+        'embedding_status': embedding_status,
+        'total_documents': InsuranceDocument.objects.count(),
+        'processed_documents': InsuranceDocument.objects.filter(processed=True).count(),
+        'total_chunks': DocumentChunk.objects.count(),
+        'total_queries': InsuranceQuery.objects.count(),
+        'model_a': os.getenv('GROQ_MODEL_A', 'llama-3.3-70b-versatile'),
+        'model_b': os.getenv('GROQ_MODEL_B', 'llama-3.1-8b-instant'),
+    })
+
+
+# =========================================================================
+# S3 Data Log API endpoints
+# =========================================================================
+
+@csrf_exempt
+def api_s3_logs(request):
+    """List all stored objects in S3 by category"""
+    prefix = request.GET.get('prefix', '')  # queries/, documents/, user-uploads/, summaries/
+    max_keys = int(request.GET.get('limit', 50))
+
+    objects = list_s3_objects(prefix=prefix, max_keys=max_keys)
+    return JsonResponse({'objects': objects, 'prefix': prefix})
+
+
+@csrf_exempt
+def api_s3_detail(request):
+    """Get the contents of a specific S3 JSON object"""
+    key = request.GET.get('key', '')
+    if not key:
+        return JsonResponse({'error': 'key parameter required'}, status=400)
+
+    content = get_s3_object_content(key)
+    if not content:
+        return JsonResponse({'error': 'Object not found or not JSON'}, status=404)
+
+    return JsonResponse({'key': key, 'content': content})
