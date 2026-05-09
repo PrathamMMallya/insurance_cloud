@@ -1,4 +1,4 @@
-# Medical Summary App - AWS Deployment with Groq Consensus
+# Insurance Recommendation - AWS Deployment with Groq Consensus
 
 A sophisticated Django application that uses **Groq-powered multi-agent consensus system** to analyze medical documents and insurance policies with competing agents reaching mutual consensus on coverage decisions.
 
