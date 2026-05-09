@@ -58,8 +58,7 @@ class DocumentUploadView(View):
                 
                 # Validate file type
                 if not uploaded_file.name.lower().endswith('.pdf'):
-                    messages.error(request, 'Only PDF files are allowed.')
-                    return redirect('insurance:index')
+                    return JsonResponse({'success': False, 'error': 'Only PDF files are allowed.'})
                 
                 # Save file
                 file_name = f"insurance_docs/{uploaded_file.name}"
@@ -78,17 +77,15 @@ class DocumentUploadView(View):
                 success = processor.process_document(full_file_path, document.id)
                 
                 if success:
-                    messages.success(request, f'Document "{title}" uploaded and processed successfully!')
+                    return JsonResponse({'success': True, 'message': f'Document "{title}" uploaded and processed successfully!'})
                 else:
-                    messages.error(request, 'Document uploaded but processing failed.')
+                    return JsonResponse({'success': False, 'error': 'Document uploaded but processing failed.'}, status=500)
                     
             except Exception as e:
                 logger.error(f"Error uploading document: {e}")
-                messages.error(request, f'Error uploading document: {str(e)}')
+                return JsonResponse({'success': False, 'error': f'Error uploading document: {str(e)}'}, status=500)
         else:
-            messages.error(request, 'Invalid form data.')
-        
-        return redirect('insurance:index')
+            return JsonResponse({'success': False, 'error': 'Invalid form data.'}, status=400)
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -222,14 +219,14 @@ def clear_database(request):
         try:
             success = InsuranceRAGProcessor.clear_all_data()
             if success:
-                messages.success(request, 'All data cleared successfully!')
+                return JsonResponse({'success': True, 'message': 'All data cleared successfully!'})
             else:
-                messages.error(request, 'Failed to clear data.')
+                return JsonResponse({'success': False, 'error': 'Failed to clear data.'}, status=500)
         except Exception as e:
             logger.error(f"Error clearing database: {e}")
-            messages.error(request, f'Error clearing database: {str(e)}')
+            return JsonResponse({'success': False, 'error': f'Error clearing database: {str(e)}'}, status=500)
     
-    return redirect('insurance:index')
+    return JsonResponse({'success': False, 'error': 'Invalid request method.'}, status=405)
 
 def document_detail(request, document_id):
     """Show document details and chunks"""

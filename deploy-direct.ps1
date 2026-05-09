@@ -26,6 +26,8 @@ tar czf insurerag-deploy.tar.gz `
     --exclude='*.pem' `
     --exclude='*.ps1' `
     --exclude='*.sh' `
+    --exclude='venv' `
+    --exclude='env' `
     -C . .
 
 # Upload
@@ -55,16 +57,18 @@ ssh -i "$KEY_NAME.pem" -o StrictHostKeyChecking=no "ec2-user@$ELASTIC_IP" @"
     # Install Python dependencies
     python3.11 -m pip install --user -r requirements.txt
 
-    # Run migrations
+    # Run migrations and collect static files
     cd server
     python3.11 manage.py migrate --noinput
+    mkdir -p staticfiles
+    python3.11 manage.py collectstatic --noinput
 
     # Kill any existing gunicorn
     pkill -f gunicorn 2>/dev/null || true
     sleep 1
 
     # Start gunicorn in screen session (port 8000, accessible from outside)
-    screen -dmS insurerag bash -c 'cd /home/ec2-user/app/server && python3.11 -m gunicorn core.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 300 --access-logfile /home/ec2-user/access.log --error-logfile /home/ec2-user/error.log'
+    screen -dmS insurerag bash -c 'cd /home/ec2-user/app/server && /home/ec2-user/.local/bin/gunicorn core.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 300 --access-logfile /home/ec2-user/access.log --error-logfile /home/ec2-user/error.log'
 
     sleep 2
     echo '>>> Checking if gunicorn is running...'
